@@ -1,0 +1,133 @@
+<!doctype html>
+<html>
+    <head>
+        <style>
+            canvas{
+                max-width:40%;
+                display: inline;
+            }
+        </style>
+    </head>
+    <body>
+        <input type="file" id="file-input" accept="image/x-png,image/gif,image/jpeg" />
+        <br />
+        <input type="range" id="factor-input" min="1" max="10" value="4">
+        <br />
+        <input type="checkbox" id="grayscale-input"> Grayscale
+        <br />
+        <canvas id="input-canvas"></canvas>
+        <canvas id="output-canvas"></canvas>
+
+        <script>
+            let fileInput = document.getElementById('file-input');
+            let factorInput = document.getElementById('factor-input');
+            let grayscaleInput = document.getElementById('grayscale-input');
+            let inputCanvas = document.getElementById('input-canvas');
+            let outputCanvas = document.getElementById('output-canvas');
+
+            let previewInitialized = false;
+
+            (function(){
+                fileInput.addEventListener('change', (event) => {
+                    drawPreview(event.target.files[0]);
+                });
+                
+                factorInput.addEventListener('change', (event) => {
+                   drawOutput(); 
+                });
+
+                grayscaleInput.addEventListener('change', (event) => {
+                   drawOutput(); 
+                });
+
+            })();
+
+            function drawPreview(imageFile){
+                var inputContext = inputCanvas.getContext('2d');
+                var inputImage = new Image;
+                inputImage.onload = function (ev) {
+                    inputCanvas.width = this.width;
+                    inputCanvas.height = this.height;
+                    inputContext.drawImage(inputImage, 0,0);    
+                    previewInitialized = true;                 
+                    drawOutput();
+                }
+                inputImage.src = URL.createObjectURL(imageFile);
+            }
+
+            function drawOutput(){
+                if(!previewInitialized){ return false; }
+
+                let inputContext = inputCanvas.getContext('2d');
+                let outputContext = outputCanvas.getContext('2d');
+                let inputImageData = inputContext.getImageData(0,0,inputCanvas.width,inputCanvas.height);
+                
+                outputCanvas.width = inputCanvas.width;
+                outputCanvas.height = inputCanvas.height;
+                
+                let factor = factorInput.value;
+
+                if(grayscaleInput.checked){
+                    inputImageData.data = toGrayscale(inputImageData.data);
+                }               
+
+                for(let y = 0; y < inputCanvas.height-1; y++){
+                    for(let x = 1; x < inputCanvas.width-1; x++){
+                        let index = calcIndex(x,y);
+
+                        let red     = inputImageData.data[index  ];
+                        let green   = inputImageData.data[index+1];
+                        let blue    = inputImageData.data[index+2];
+                        let alpha   = inputImageData.data[index+3];
+
+                        let newRed      = Math.round(factor * red / 255) * (255 / factor);
+                        let newGreen    = Math.round(factor * green / 255) * (255 / factor);
+                        let newBlue     = Math.round(factor * blue / 255) * (255 / factor);
+
+                        inputImageData.data[index  ] = newRed;
+                        inputImageData.data[index+1] = newGreen;
+                        inputImageData.data[index+2] = newBlue;
+                        inputImageData.data[index+3] = alpha;
+
+                        let errorRed    = red - newRed;
+                        let errorGreen  = green - newGreen;
+                        let errorBlue   = blue - newBlue;          
+                        
+                        inputImageData.data[calcIndex(x+1,y)]       = inputImageData.data[calcIndex(x+1,y)  ]   + errorRed      * 7/16;
+                        inputImageData.data[calcIndex(x+1,y)+1]     = inputImageData.data[calcIndex(x+1,y)+1]   + errorGreen    * 7/16;
+                        inputImageData.data[calcIndex(x+1,y)+2]     = inputImageData.data[calcIndex(x+1,y)+2]   + errorBlue     * 7/16;
+
+                        inputImageData.data[calcIndex(x-1,y+1)]     = inputImageData.data[calcIndex(x-1,y+1)]   + errorRed      * 3/16;
+                        inputImageData.data[calcIndex(x-1,y+1)+1]   = inputImageData.data[calcIndex(x-1,y+1)+1] + errorGreen    * 3/16;
+                        inputImageData.data[calcIndex(x-1,y+1)+2]   = inputImageData.data[calcIndex(x-1,y+1)+2] + errorBlue     * 3/16;
+
+                        inputImageData.data[calcIndex(x,y+1)]       = inputImageData.data[calcIndex(x,y+1)]     + errorRed      * 5/16;
+                        inputImageData.data[calcIndex(x,y+1)+1]     = inputImageData.data[calcIndex(x,y+1)+1]   + errorGreen    * 5/16;
+                        inputImageData.data[calcIndex(x,y+1)+2]     = inputImageData.data[calcIndex(x,y+1)+2]   + errorBlue     * 5/16;
+
+                        inputImageData.data[calcIndex(x+1,y+1)]     = inputImageData.data[calcIndex(x+1,y+1)]   + errorRed      * 1/16;
+                        inputImageData.data[calcIndex(x+1,y+1)+1]   = inputImageData.data[calcIndex(x+1,y+1)+1] + errorGreen    * 1/16;
+                        inputImageData.data[calcIndex(x+1,y+1)+2]   = inputImageData.data[calcIndex(x+1,y+1)+2] + errorBlue     * 1/16;
+                    }
+                }
+
+                outputContext.putImageData(inputImageData, 0, 0);
+
+                function calcIndex(x,y){
+                    return (Math.floor((x + y * inputCanvas.width)) * 4);
+                }
+
+                function toGrayscale(imageData){
+                    for (var i = 0; i < imageData.length; i += 4) {
+                        // get the medium of the 3 first values ( (r+g+b)/3 )
+                        var med = (imageData[i] + imageData[i + 1] + imageData[i + 2]) / 3;
+                        // set it to each value (r = g = b = med)
+                        imageData[i] = imageData[i + 1] = imageData[i + 2] = med;
+                        // we don't touch the alpha
+                    }
+                    return imageData;
+                }
+            }
+        </script>
+    </body>
+</html>
